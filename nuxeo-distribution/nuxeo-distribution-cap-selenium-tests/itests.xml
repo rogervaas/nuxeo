@@ -17,4 +17,13 @@
 
   <target name="run-selenium-tests" depends="run-selenium" />
 
+  <target name="prepare-environment" depends="_init,prepare-db,prepare-tomcat">
+    <nx:profile name="jsfoptims">
+      <antcall target="set-conf">
+        <param name="name" value="nuxeo.templates" />
+        <param name="value" value="default,jsfoptims" />
+      </antcall>
+    </nx:profile>
+  </target>
+
 </project>
