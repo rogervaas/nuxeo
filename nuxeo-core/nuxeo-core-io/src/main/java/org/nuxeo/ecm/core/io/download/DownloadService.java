@@ -46,6 +46,11 @@ public interface DownloadService {
 
     String NXDOWNLOADINFO = "nxdownloadinfo";
 
+    /**
+     * @since 9.3
+     */
+    String NXBLOBTATUS = "nxblobstatus";
+
     String NXBIGBLOB = "nxbigblob";
 
     /** @deprecated since 9.1, use nxbigblob instead */
@@ -59,6 +64,8 @@ public interface DownloadService {
     String BLOBHOLDER_PREFIX = "blobholder:";
 
     String BLOBHOLDER_0 = "blobholder:0";
+
+    String ERROR = "error";
 
     public static class ByteRange {
 
@@ -154,6 +161,17 @@ public interface DownloadService {
      * @since 9.1
      */
     void handleDownload(HttpServletRequest req, HttpServletResponse resp, String baseUrl, String path)
+            throws IOException;
+
+    /**
+     * Triggers a blobs status to know whether an blob produced asynchronously is ready.
+     *
+     * @param storeKey the stored blobs key
+     * @param reason the download reason
+     * @return 200 Status Code if the blob is ready or 202 if it is still being processed.
+     * @since 9.3
+     */
+    void downloadBlobStatus(HttpServletRequest request, HttpServletResponse response, String storeKey, String reason)
             throws IOException;
 
     /**

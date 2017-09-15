@@ -102,7 +102,9 @@ public class DownloadServiceImpl extends DefaultComponent implements DownloadSer
 
     private static final String RUN_FUNCTION = "run";
 
-    protected static enum Action {DOWNLOAD, DOWNLOAD_FROM_DOC, INFO};
+    protected static enum Action {
+        DOWNLOAD, DOWNLOAD_FROM_DOC, INFO, BLOBSTATUS
+    };
 
     private DownloadPermissionRegistry registry = new DownloadPermissionRegistry();
 
@@ -257,6 +259,8 @@ public class DownloadServiceImpl extends DefaultComponent implements DownloadSer
         case NXBIGZIPFILE:
         case NXBIGBLOB:
             return Pair.of(downloadPath, Action.DOWNLOAD);
+        case NXBLOBTATUS:
+            return Pair.of(downloadPath, Action.BLOBSTATUS);
         default:
             return null;
         }
@@ -308,6 +312,9 @@ public class DownloadServiceImpl extends DefaultComponent implements DownloadSer
             break;
         case DOWNLOAD:
             downloadBlob(req, resp, downloadPath, "download");
+            break;
+        case BLOBSTATUS:
+            downloadBlobStatus(req, resp, downloadPath, "download");
             break;
         default:
             resp.sendError(HttpServletResponse.SC_NOT_FOUND, "Invalid URL syntax");
@@ -379,6 +386,31 @@ public class DownloadServiceImpl extends DefaultComponent implements DownloadSer
     }
 
     @Override
+    public void downloadBlobStatus(HttpServletRequest request, HttpServletResponse response, String key, String reason)
+            throws IOException {
+        TransientStore ts = Framework.getService(TransientStoreService.class).getStore("download");
+        try {
+            List<Blob> blobs = ts.getBlobs(key);
+            if (blobs == null) {
+                throw new IllegalArgumentException("no such blobs referenced with " + key);
+            }
+            if (blobs.size() > 1) {
+                throw new IllegalArgumentException("multipart download not yet implemented");
+            }
+            if (ts.getParameter(key, ERROR) != null) {
+                response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                        ((Throwable) ts.getParameter(key, ERROR)).getMessage());
+            } else if (ts.isCompleted(key)) {
+                Blob blob = blobs.get(0);
+                downloadBlob(request, response, null, null, blob, blob.getFilename(), reason);
+            } else {
+                response.sendError(HttpServletResponse.SC_ACCEPTED);
+            }
+        } finally {
+        }
+    }
+
+    @Override
     public void downloadBlob(HttpServletRequest request, HttpServletResponse response, String key, String reason) throws IOException {
         TransientStore ts = Framework.getService(TransientStoreService.class).getStore("download");
         try {
@@ -389,8 +421,15 @@ public class DownloadServiceImpl extends DefaultComponent implements DownloadSer
             if (blobs.size() > 1) {
                 throw new IllegalArgumentException("multipart download not yet implemented");
             }
-            Blob blob = blobs.get(0);
-            downloadBlob(request, response, null, null, blob, blob.getFilename(), reason);
+            if (ts.getParameter(key, ERROR) != null) {
+                response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                        ((Throwable) ts.getParameter(key, ERROR)).getMessage());
+            } else if (ts.isCompleted(key)) {
+                Blob blob = blobs.get(0);
+                downloadBlob(request, response, null, null, blob, blob.getFilename(), reason);
+            } else {
+                response.sendError(HttpServletResponse.SC_ACCEPTED);
+            }
         } finally {
             ts.remove(key);
         }
