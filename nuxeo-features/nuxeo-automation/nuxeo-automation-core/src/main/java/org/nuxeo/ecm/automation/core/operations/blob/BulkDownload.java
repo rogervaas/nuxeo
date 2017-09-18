@@ -31,6 +31,7 @@ import org.nuxeo.ecm.automation.core.annotations.Operation;
 import org.nuxeo.ecm.automation.core.annotations.OperationMethod;
 import org.nuxeo.ecm.automation.core.annotations.Param;
 import org.nuxeo.ecm.automation.core.util.BlobList;
+import org.nuxeo.ecm.automation.core.work.BlobListZipWork;
 import org.nuxeo.ecm.core.api.Blob;
 import org.nuxeo.ecm.core.api.CoreSession;
 import org.nuxeo.ecm.core.api.DocumentModel;
@@ -38,6 +39,7 @@ import org.nuxeo.ecm.core.api.DocumentModelList;
 import org.nuxeo.ecm.core.api.NuxeoException;
 import org.nuxeo.ecm.core.api.blobholder.BlobHolder;
 import org.nuxeo.ecm.core.api.impl.blob.AsyncBlob;
+import org.nuxeo.ecm.core.io.download.DownloadService;
 import org.nuxeo.ecm.core.transientstore.api.TransientStore;
 import org.nuxeo.ecm.core.transientstore.api.TransientStoreService;
 import org.nuxeo.ecm.core.work.api.Work;
@@ -121,20 +123,20 @@ public class BulkDownload {
 
         TransientStoreService tss = Framework.getService(TransientStoreService.class);
 
-        TransientStore ts = tss.getStore("download");
+        TransientStore ts = tss.getStore(DownloadService.STORE_NAME);
         if (ts == null) {
             throw new NuxeoException("Unable to find download Transient Store");
         }
         List<Blob> blobs = null;
         if (!ts.exists(key)) {
-            Work work = new BlobListZipWork(key, session.getPrincipal().getName(), this.fileName, blobList);
+            Work work = new BlobListZipWork(key, session.getPrincipal().getName(), this.fileName, blobList,
+                    DownloadService.STORE_NAME);
             ts.setCompleted(key, false);
             ts.putParameter(key, WORKERID_KEY, work.getId());
             blobs = new ArrayList<Blob>();
             blobs.add(new AsyncBlob(key));
             ts.putBlobs(key, blobs);
             Framework.getService(WorkManager.class).schedule(work, Scheduling.IF_NOT_SCHEDULED);
-            blobs = ts.getBlobs(key);
             return blobs.get(0);
         } else {
             blobs = ts.getBlobs(key);
@@ -149,7 +151,8 @@ public class BulkDownload {
                 }
 
             } else {
-                Work work = new BlobListZipWork(key, session.getPrincipal().getName(), this.fileName, blobList);
+                Work work = new BlobListZipWork(key, session.getPrincipal().getName(), this.fileName, blobList,
+                        DownloadService.STORE_NAME);
                 String workId = work.getId();
                 WorkManager wm = Framework.getService(WorkManager.class);
                 if (wm.find(workId, null) == null) {

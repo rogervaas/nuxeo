@@ -16,7 +16,7 @@
  * Contributors:
  *     Guillaume Renard <grenard@nuxeo.com>
  */
-package org.nuxeo.ecm.automation.core.operations.blob;
+package org.nuxeo.ecm.automation.core.work;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,6 +24,7 @@ import java.util.List;
 import org.apache.commons.lang3.StringUtils;
 import org.nuxeo.ecm.automation.AutomationService;
 import org.nuxeo.ecm.automation.OperationContext;
+import org.nuxeo.ecm.automation.core.operations.blob.CreateZip;
 import org.nuxeo.ecm.automation.core.util.BlobList;
 import org.nuxeo.ecm.core.api.Blob;
 import org.nuxeo.ecm.core.api.NuxeoException;
@@ -35,7 +36,7 @@ import org.nuxeo.ecm.core.transientstore.work.TransientStoreWork;
 import org.nuxeo.runtime.api.Framework;
 
 /**
- * Work to zip a list of blob and store the produced archive into the TransientStore.
+ * Work to zip a list of blob and store the produced zip into the TransientStore.
  * 
  * @since 9.3
  */
@@ -53,11 +54,19 @@ public class BlobListZipWork extends TransientStoreWork {
 
     protected String key;
 
+    protected String storeName;
+
     public BlobListZipWork(String transientStoreKey, String originatingUsername, String filename, BlobList blobList) {
+        this(transientStoreKey, originatingUsername, filename, blobList, filename);
+    }
+
+    public BlobListZipWork(String transientStoreKey, String originatingUsername, String filename, BlobList blobList,
+            String storeName) {
         this.key = transientStoreKey;
         this.blobList = blobList;
         this.originatingUsername = originatingUsername;
         this.id = "BlobListZipWork-" + this.key + "-" + this.originatingUsername;
+        this.storeName = storeName;
         if (StringUtils.isNotBlank(filename)) {
             this.filename = filename.toLowerCase().endsWith(".zip") ? filename : filename + ".zip";
         }
@@ -73,8 +82,7 @@ public class BlobListZipWork extends TransientStoreWork {
         List<Blob> blobs = new ArrayList<Blob>();
         Blob emptyBlob = new AsyncBlob(key);
         blobs.add(emptyBlob);
-        TransientStoreService tss = Framework.getService(TransientStoreService.class);
-        TransientStore ts = tss.getStore(getTransientStoreName());
+        TransientStore ts = getTransientStore();
         ts.putParameter(key, DownloadService.ERROR, e);
         updateAndCompleteStoreEntry(blobs);
     }
@@ -89,16 +97,16 @@ public class BlobListZipWork extends TransientStoreWork {
         return this.id;
     }
 
-    protected String getTransientStoreName() {
-        return CACHE_NAME;
+    public TransientStore getTransientStore() {
+        TransientStoreService tss = Framework.getService(TransientStoreService.class);
+        return tss.getStore(StringUtils.isNotBlank(this.storeName) ? storeName : CACHE_NAME);
     }
 
     void updateAndCompleteStoreEntry(List<Blob> blobs) {
-        TransientStoreService tss = Framework.getService(TransientStoreService.class);
-        TransientStore ts = tss.getStore(getTransientStoreName());
+        TransientStore ts = getTransientStore();
 
         if (!ts.exists(key)) {
-            throw new NuxeoException("Rendition TransientStore entry can not be null");
+            throw new NuxeoException("Zip TransientStore entry can not be null");
         }
         ts.putBlobs(key, blobs);
         ts.setCompleted(key, true);
@@ -107,7 +115,6 @@ public class BlobListZipWork extends TransientStoreWork {
     @Override
     public void work() {
         openUserSession();
-
         AutomationService as = Framework.getLocalService(AutomationService.class);
         try (OperationContext oc = new OperationContext(session)) {
             oc.push("filename", StringUtils.isNotBlank(this.filename) ? this.filename : this.id);
@@ -117,8 +124,7 @@ public class BlobListZipWork extends TransientStoreWork {
             blobs.add(blob);
             updateAndCompleteStoreEntry(blobs);
         } catch (Exception e) {
-            TransientStoreService tss = Framework.getService(TransientStoreService.class);
-            TransientStore ts = tss.getStore(getTransientStoreName());
+            TransientStore ts = getTransientStore();
             ts.putParameter(key, DownloadService.ERROR, e);
             throw new NuxeoException("Exception while zipping blob list", e);
         }
