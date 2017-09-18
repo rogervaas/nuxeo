@@ -67,6 +67,8 @@ public interface DownloadService {
 
     String ERROR = "error";
 
+    String STORE_NAME = "download";
+
     public static class ByteRange {
 
         private final long start;

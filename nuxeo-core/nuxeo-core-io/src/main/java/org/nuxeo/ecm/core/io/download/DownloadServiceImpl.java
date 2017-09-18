@@ -197,7 +197,7 @@ public class DownloadServiceImpl extends DefaultComponent implements DownloadSer
         if (blobs.size() > 1) {
             throw new IllegalArgumentException("multipart download not yet implemented");
         }
-        TransientStore ts = Framework.getService(TransientStoreService.class).getStore("download");
+        TransientStore ts = Framework.getService(TransientStoreService.class).getStore(STORE_NAME);
         String storeKey = UUID.randomUUID().toString();
         ts.putBlobs(storeKey, blobs);
         return storeKey;
@@ -388,7 +388,7 @@ public class DownloadServiceImpl extends DefaultComponent implements DownloadSer
     @Override
     public void downloadBlobStatus(HttpServletRequest request, HttpServletResponse response, String key, String reason)
             throws IOException {
-        TransientStore ts = Framework.getService(TransientStoreService.class).getStore("download");
+        TransientStore ts = Framework.getService(TransientStoreService.class).getStore(STORE_NAME);
         try {
             List<Blob> blobs = ts.getBlobs(key);
             if (blobs == null) {
@@ -401,10 +401,9 @@ public class DownloadServiceImpl extends DefaultComponent implements DownloadSer
                 response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
                         ((Throwable) ts.getParameter(key, ERROR)).getMessage());
             } else if (ts.isCompleted(key)) {
-                Blob blob = blobs.get(0);
-                downloadBlob(request, response, null, null, blob, blob.getFilename(), reason);
+                response.setStatus(HttpServletResponse.SC_OK);
             } else {
-                response.sendError(HttpServletResponse.SC_ACCEPTED);
+                response.setStatus(HttpServletResponse.SC_ACCEPTED);
             }
         } finally {
         }
@@ -412,7 +411,7 @@ public class DownloadServiceImpl extends DefaultComponent implements DownloadSer
 
     @Override
     public void downloadBlob(HttpServletRequest request, HttpServletResponse response, String key, String reason) throws IOException {
-        TransientStore ts = Framework.getService(TransientStoreService.class).getStore("download");
+        TransientStore ts = Framework.getService(TransientStoreService.class).getStore(STORE_NAME);
         try {
             List<Blob> blobs = ts.getBlobs(key);
             if (blobs == null) {
@@ -428,7 +427,7 @@ public class DownloadServiceImpl extends DefaultComponent implements DownloadSer
                 Blob blob = blobs.get(0);
                 downloadBlob(request, response, null, null, blob, blob.getFilename(), reason);
             } else {
-                response.sendError(HttpServletResponse.SC_ACCEPTED);
+                response.setStatus(HttpServletResponse.SC_ACCEPTED);
             }
         } finally {
             ts.remove(key);

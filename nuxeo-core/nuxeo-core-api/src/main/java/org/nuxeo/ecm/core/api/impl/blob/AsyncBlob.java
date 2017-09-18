@@ -35,6 +35,7 @@ public class AsyncBlob extends JSONBlob {
 
     public AsyncBlob(String key, String filename) {
         super("{\"key\":\"" + key + "\"}");
+        this.key = key;
         setFilename(filename);
     }
 

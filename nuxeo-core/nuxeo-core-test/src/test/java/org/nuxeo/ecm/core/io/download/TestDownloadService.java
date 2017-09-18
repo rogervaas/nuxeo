@@ -21,6 +21,7 @@ package org.nuxeo.ecm.core.io.download;
 
 import static java.lang.Boolean.FALSE;
 import static java.lang.Boolean.TRUE;
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
@@ -29,7 +30,6 @@ import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -63,6 +63,8 @@ import org.nuxeo.ecm.core.api.local.ClientLoginModule;
 import org.nuxeo.ecm.core.api.local.LoginStack;
 import org.nuxeo.ecm.core.io.download.DownloadServiceImpl.Action;
 import org.nuxeo.ecm.core.test.CoreFeature;
+import org.nuxeo.ecm.core.transientstore.api.TransientStore;
+import org.nuxeo.ecm.core.transientstore.api.TransientStoreService;
 import org.nuxeo.runtime.api.Framework;
 import org.nuxeo.runtime.test.runner.Deploy;
 import org.nuxeo.runtime.test.runner.Features;
@@ -250,6 +252,63 @@ public class TestDownloadService {
 
             // but another xpath is allowed, per the javascript rule
             downloadService.downloadBlob(request, response, doc, "other:blob", blob, null, reason, extendedInfos);
+            assertEquals(blobValue, out.toString());
+        } finally {
+            loginStack.pop();
+        }
+    }
+
+    /**
+     * @since 9.3
+     */
+    @Test
+    public void testDownloadStatus() throws IOException {
+        // blob to download
+        String blobValue = "Hello World";
+        Blob blob = Blobs.createBlob(blobValue);
+        blob.setFilename("myfile.txt");
+        blob.setDigest("12345");
+
+        // mock request
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        when(request.getMethod()).thenReturn("GET");
+
+        // mock response
+        HttpServletResponse response = mock(HttpServletResponse.class);
+        ServletOutputStream sos = new ServletOutputStream() {
+            @Override
+            public void write(int b) throws IOException {
+                out.write(b);
+            }
+        };
+        PrintWriter printWriter = new PrintWriter(sos);
+        when(response.getOutputStream()).thenReturn(sos);
+        when(response.getWriter()).thenReturn(printWriter);
+
+        // principal
+        NuxeoPrincipal principal = new UserPrincipal("bob", Collections.singletonList("members"), false, false);
+
+        String key = downloadService.storeBlobs(Collections.singletonList(blob));
+        TransientStoreService tss = Framework.getService(TransientStoreService.class);
+        TransientStore ts = tss.getStore(DownloadService.STORE_NAME);
+        ts.setCompleted(key, false);
+        // do tests while logged in
+        LoginStack loginStack = ClientLoginModule.getThreadLocalLogin();
+        loginStack.push(principal, null, null);
+        try {
+            // send status request for not complete stored blob, should be accepted
+            downloadService.downloadBlobStatus(request, response, key, "download");
+            assertEquals("", out.toString());
+            verify(response, atLeastOnce()).setStatus(202);
+
+            ts.setCompleted(key, true);
+            // send status request for complete stored blob, should be ok
+            downloadService.downloadBlobStatus(request, response, key, "download");
+            verify(response, atLeastOnce()).setStatus(200);
+
+            // send download request for complete stored blob
+            downloadService.downloadBlob(request, response, key, "download");
             assertEquals(blobValue, out.toString());
         } finally {
             loginStack.pop();
