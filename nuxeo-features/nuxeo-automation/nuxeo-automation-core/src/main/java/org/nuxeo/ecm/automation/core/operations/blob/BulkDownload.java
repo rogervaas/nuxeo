@@ -23,8 +23,11 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.List;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.nuxeo.ecm.automation.core.Constants;
 import org.nuxeo.ecm.automation.core.annotations.Context;
 import org.nuxeo.ecm.automation.core.annotations.Operation;
@@ -55,6 +58,8 @@ import org.nuxeo.runtime.api.Framework;
 @Operation(id = BulkDownload.ID, category = Constants.CAT_BLOB, label = "Bulk Downlaod", description = "Prepare a Zip of a list of documents which is build asynchrously. Produced Zip will be available in the TransientStore with the key returned by the AsyncBlob.")
 public class BulkDownload {
 
+    private static final Log log = LogFactory.getLog(BulkDownload.class);
+
     public static final String ID = "Blob.BulkDownload";
 
     private static final char[] HEX_DIGITS = "0123456789abcdef".toCharArray();
@@ -63,6 +68,9 @@ public class BulkDownload {
 
     @Context
     protected CoreSession session;
+
+    @Context
+    protected DownloadService downloadService;
 
     @Param(name = "filename", required = false)
     protected String fileName;
@@ -102,12 +110,15 @@ public class BulkDownload {
 
     @OperationMethod
     public Blob run(DocumentModelList docs) throws IOException {
-
         BlobList blobList = new BlobList();
         for (DocumentModel doc : docs) {
             BlobHolder blobHolder = doc.getAdapter(BlobHolder.class);
             if (blobHolder != null) {
                 Blob b = blobHolder.getBlob();
+                if (!downloadService.checkPermission(doc, null, b, "download", Collections.emptyMap())) {
+                    log.debug(String.format("Not allowed to bulk download blob for document %s", doc.getId()));
+                    continue;
+                }
                 if (b != null) {
                     blobList.add(blobHolder.getBlob());
                 }
@@ -120,7 +131,6 @@ public class BulkDownload {
 
         // build the key
         String key = buildTransientStoreKey(docs);
-
         TransientStoreService tss = Framework.getService(TransientStoreService.class);
 
         TransientStore ts = tss.getStore(DownloadService.STORE_NAME);
