@@ -1438,4 +1438,14 @@ public interface CoreSession extends AutoCloseable {
      */
     String getChangeToken(DocumentRef ref);
 
+    /**
+     * Gets a document if it exists, otherwise creates it. This is done atomically to prevent different threads from
+     * trying to create the same document.
+     *
+     * @param docModel the document model
+     * @return the existing or created document
+     * @since 9.3
+     */
+    DocumentModel getOrCreateDocument(DocumentModel docModel);
+
 }

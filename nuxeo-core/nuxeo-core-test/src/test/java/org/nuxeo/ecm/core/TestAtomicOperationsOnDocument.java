@@ -127,6 +127,9 @@ public class TestAtomicOperationsOnDocument {
 
         doc = t.documentModel;
 
+        TransactionHelper.commitOrRollbackTransaction();
+        TransactionHelper.startTransaction();
+
         assertTrue(session.exists(doc.getRef()));
 
     }

@@ -83,6 +83,7 @@ import org.nuxeo.ecm.core.event.EventService;
 import org.nuxeo.ecm.core.event.impl.DocumentEventContext;
 import org.nuxeo.ecm.core.filter.CharacterFilteringService;
 import org.nuxeo.ecm.core.lifecycle.LifeCycleService;
+import org.nuxeo.ecm.core.lock.LockHelper;
 import org.nuxeo.ecm.core.model.Document;
 import org.nuxeo.ecm.core.model.PathComparator;
 import org.nuxeo.ecm.core.model.Session;
@@ -2462,6 +2463,33 @@ public abstract class AbstractSession implements CoreSession, Serializable {
             id = doc.getTargetDocument().getUUID();
         }
         return getSession().getBinaryFulltext(id);
+    }
+
+    @Override
+    public DocumentModel getOrCreateDocument(DocumentModel docModel) {
+        DocumentRef ref = docModel.getRef();
+        // Check if the document exists
+        if (exists(ref)) {
+            return getDocument(ref);
+        }
+        // handle placeless documents, no locks are needed in this case
+        if (docModel.getParentRef() == null) {
+            return createDocument(docModel);
+        }
+        String key = computeKey(docModel);
+        return LockHelper.doAtomically(key, () -> {
+            if (exists(ref)) {
+                return getDocument(ref);
+            }
+            return createDocument(docModel);
+        });
+    }
+
+    protected String computeKey(DocumentModel docModel) {
+        String repositoryName = docModel.getRepositoryName();
+        String parentId = getDocument(docModel.getParentRef()).getId();
+        String name = docModel.getName();
+        return repositoryName + "-" + parentId + "-" + name;
     }
 
 }
