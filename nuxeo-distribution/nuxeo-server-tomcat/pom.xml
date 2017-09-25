@@ -15,7 +15,7 @@
 
   <properties>
     <!-- Use a Nuxeo lightened Tomcat -->
-    <tomcat.classifier>light</tomcat.classifier>
+    <tomcat.classifier></tomcat.classifier>
   </properties>
 
   <dependencies>
